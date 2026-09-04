@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#0f5132" />
+  <title>Phỏm Online</title>
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+  <main id="app">
+    <section id="lobby" class="panel lobby">
+      <div class="brand">🃏</div>
+      <h1>PHỎM ONLINE</h1>
+      <p class="muted">Tá Lả realtime cho nhóm bạn · 2–4 người</p>
+
+      <label>Tên của bạn</label>
+      <input id="nameInput" maxlength="20" placeholder="Ví dụ: Cường" autocomplete="nickname" />
+
+      <button id="createBtn" class="primary">TẠO PHÒNG</button>
+
+      <div class="or"><span></span>hoặc<span></span></div>
+
+      <label>Mã phòng</label>
+      <input id="roomInput" maxlength="6" placeholder="ABC123" autocapitalize="characters" />
+      <button id="joinBtn">VÀO PHÒNG</button>
+      <p id="lobbyError" class="error"></p>
+    </section>
+
+    <section id="game" class="game hidden">
+      <header class="topbar">
+        <div>
+          <div class="room-title">Phòng <strong id="roomCode">------</strong></div>
+          <div id="connection" class="status-dot">● Đã kết nối</div>
+        </div>
+        <div class="top-actions">
+          <button id="copyBtn" class="small">Copy mã</button>
+          <button id="leaveBtn" class="small danger">Rời phòng</button>
+        </div>
+      </header>
+
+      <section class="table-wrap">
+        <div id="table" class="table">
+          <div id="seatTop" class="seat seat-top"></div>
+          <div id="seatLeft" class="seat seat-left"></div>
+          <div id="seatRight" class="seat seat-right"></div>
+
+          <div class="center-area">
+            <div class="pile">
+              <div class="deck-card card-back"></div>
+              <div id="deckCount" class="pile-label">Nọc: 0</div>
+            </div>
+            <div class="pile">
+              <div id="discardCard" class="playing-card empty-card">—</div>
+              <div class="pile-label">Bài bỏ</div>
+            </div>
+          </div>
+
+          <div id="seatMe" class="seat seat-me"></div>
+          <div id="notice" class="notice"></div>
+        </div>
+      </section>
+
+      <section class="hand-panel">
+        <div id="hand" class="hand"></div>
+        <div id="actions" class="actions">
+          <button id="drawBtn" class="action">BỐC</button>
+          <button id="takeBtn" class="action">ĂN</button>
+          <button id="layBtn" class="action">HẠ PHỎM</button>
+          <button id="discardBtn" class="action primary">ĐÁNH</button>
+          <button id="startBtn" class="action primary hidden">BẮT ĐẦU</button>
+        </div>
+        <p id="actionError" class="error action-error"></p>
+      </section>
+
+      <section id="results" class="modal hidden">
+        <div class="modal-card">
+          <h2>KẾT QUẢ VÁN</h2>
+          <p id="resultReason" class="muted"></p>
+          <div id="resultRows"></div>
+          <button id="playAgainBtn" class="primary">CHƠI VÁN MỚI</button>
+        </div>
+      </section>
+    </section>
+  </main>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="/app.js"></script>
+</body>
+</html>
