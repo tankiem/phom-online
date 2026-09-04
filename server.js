@@ -9,6 +9,7 @@ const {
   sortCards,
   bestMeldSolution,
   canTakeDiscard,
+  enumerateMelds,
   publicCard
 } = require('./game/phom');
 
@@ -55,6 +56,8 @@ function newPlayer(socket, name, token) {
     cards: [],
     takenCards: [],
     discardCount: 0,
+    discards: [],
+    matchPoints: 0,
     laidDown: false,
     laydown: null,
     disconnectTimer: null
@@ -75,12 +78,32 @@ function newRoom(code, hostPlayer) {
     phase: 'waiting',
     totalDiscards: 0,
     lastAction: 'Phòng đã được tạo.',
+    scoreUnit: 1,
+    eventSeq: 0,
+    lastEvent: null,
     results: null
   };
 }
 
 function touch(room) {
   room.updatedAt = Date.now();
+}
+
+function setRoomEvent(room, type, message, playerId = null, card = null) {
+  room.eventSeq += 1;
+  room.lastAction = message;
+  room.lastEvent = {
+    seq: room.eventSeq,
+    type,
+    playerId,
+    card: publicCard(card)
+  };
+}
+
+function rankPointPattern(playerCount) {
+  if (playerCount === 2) return [1, -1];
+  if (playerCount === 3) return [2, 0, -2];
+  return [3, 1, -1, -3];
 }
 
 function currentPlayer(room) {
@@ -115,6 +138,8 @@ function publicRoom(room, viewerId) {
     topDiscard: publicCard(topDiscard),
     totalDiscards: room.totalDiscards,
     lastAction: room.lastAction,
+    lastEvent: room.lastEvent,
+    scoreUnit: room.scoreUnit,
     currentPlayerId: current?.id || null,
     currentPlayerName: current?.name || null,
     players: room.players.map((p) => ({
@@ -123,6 +148,8 @@ function publicRoom(room, viewerId) {
       connected: p.connected,
       cardCount: p.cards.length,
       discardCount: p.discardCount,
+      discards: p.discards.map(publicCard),
+      matchPoints: p.matchPoints,
       laidDown: p.laidDown,
       melds: p.laidDown ? (p.laydown?.melds || []).map((m) => m.map(publicCard)) : []
     })),
@@ -189,6 +216,7 @@ function startGame(room) {
     p.cards = [];
     p.takenCards = [];
     p.discardCount = 0;
+    p.discards = [];
     p.laidDown = false;
     p.laydown = null;
   }
@@ -197,7 +225,7 @@ function startGame(room) {
     for (const p of room.players) p.cards.push(room.deck.pop());
   }
   room.players[0].cards.push(room.deck.pop());
-  room.lastAction = `${room.players[0].name} có 10 lá và đánh trước.`;
+  setRoomEvent(room, 'start', `${room.players[0].name} có 10 lá và đánh trước.`, room.players[0].id);
 }
 
 function finishGame(room, reason = 'Đã hết 4 vòng.') {
@@ -219,12 +247,24 @@ function finishGame(room, reason = 'Đã hết 4 vòng.') {
     if (a.isMom !== b.isMom) return a.isMom ? 1 : -1;
     return a.score - b.score;
   });
-  rows.forEach((r, i) => { r.rank = i + 1; });
+
+  const pattern = rankPointPattern(rows.length);
+  rows.forEach((r, i) => {
+    r.rank = i + 1;
+    r.roundPoints = pattern[i] * room.scoreUnit;
+    const player = room.players.find((p) => p.id === r.playerId);
+    if (player) {
+      player.matchPoints += r.roundPoints;
+      r.totalPoints = player.matchPoints;
+    } else {
+      r.totalPoints = r.roundPoints;
+    }
+  });
 
   room.status = 'finished';
   room.phase = 'finished';
-  room.results = { reason, rows };
-  room.lastAction = reason;
+  room.results = { reason, rows, scoreUnit: room.scoreUnit };
+  setRoomEvent(room, 'finish', reason);
 }
 
 function advanceTurn(room) {
@@ -253,7 +293,7 @@ io.on('connection', (socket) => {
       player.name = cleanName(name || player.name);
       attachSocketToPlayer(socket, room, player);
       ack?.({ ok: true, code, token: player.token, playerId: player.id, reconnected: true });
-      room.lastAction = `${player.name} đã kết nối lại.`;
+      setRoomEvent(room, 'reconnect', `${player.name} đã kết nối lại.`, player.id);
       emitRoom(room);
       return;
     }
@@ -264,8 +304,21 @@ io.on('connection', (socket) => {
     player = newPlayer(socket, name, token);
     room.players.push(player);
     attachSocketToPlayer(socket, room, player);
-    room.lastAction = `${player.name} đã vào phòng.`;
+    setRoomEvent(room, 'join', `${player.name} đã vào phòng.`, player.id);
     ack?.({ ok: true, code, token: player.token, playerId: player.id });
+    emitRoom(room);
+  });
+
+  socket.on('set-score-unit', ({ value } = {}, ack) => {
+    const { room, player } = socketPlayer(socket);
+    if (!room || !player) return ackError(ack, 'Bạn chưa ở trong phòng.');
+    if (room.hostId !== player.id) return ackError(ack, 'Chỉ chủ phòng được đổi mức điểm.');
+    if (room.status === 'playing') return ackError(ack, 'Không thể đổi mức điểm khi ván đang diễn ra.');
+    const next = Number(value);
+    if (![1, 5, 10, 20].includes(next)) return ackError(ack, 'Mức điểm không hợp lệ.');
+    room.scoreUnit = next;
+    setRoomEvent(room, 'score-setting', `${player.name} đặt mức điểm ván là ${next}.`, player.id);
+    ack?.({ ok: true });
     emitRoom(room);
   });
 
@@ -291,7 +344,7 @@ io.on('connection', (socket) => {
     if (!card) return ackError(ack, 'Nọc đã hết.');
     player.cards.push(card);
     room.phase = 'discard';
-    room.lastAction = `${player.name} đã bốc 1 lá.`;
+    setRoomEvent(room, 'draw', `${player.name} đã bốc 1 lá.`, player.id, card);
     ack?.({ ok: true });
     emitRoom(room);
   });
@@ -306,10 +359,17 @@ io.on('connection', (socket) => {
     if (!card) return ackError(ack, 'Chưa có lá bài bỏ để ăn.');
     if (!canTakeDiscard(player.cards, card)) return ackError(ack, 'Lá này chưa tạo được phỏm với bài trên tay.');
     room.discardPile.pop();
+    for (const owner of room.players) {
+      const idx = owner.discards.findIndex((c) => c.id === card.id);
+      if (idx >= 0) {
+        owner.discards.splice(idx, 1);
+        break;
+      }
+    }
     player.cards.push(card);
     player.takenCards.push(card.id);
     room.phase = 'discard';
-    room.lastAction = `${player.name} đã ăn ${label(card)}.`;
+    setRoomEvent(room, 'take', `${player.name} đã ăn ${label(card)}.`, player.id, card);
     ack?.({ ok: true });
     emitRoom(room);
   });
@@ -328,7 +388,7 @@ io.on('connection', (socket) => {
     const [candidate] = player.cards.splice(index, 1);
     const requiredStillValid = player.takenCards.every((takenId) => {
       const takenCard = player.cards.find((c) => c.id === takenId);
-      return takenCard && require('./game/phom').enumerateMelds(player.cards).some((meld) => meld.some((c) => c.id === takenId));
+      return takenCard && enumerateMelds(player.cards).some((meld) => meld.some((c) => c.id === takenId));
     });
     if (!requiredStillValid) {
       player.cards.splice(index, 0, candidate);
@@ -336,9 +396,10 @@ io.on('connection', (socket) => {
     }
     const card = candidate;
     room.discardPile.push(card);
+    player.discards.push(card);
     player.discardCount += 1;
     room.totalDiscards += 1;
-    room.lastAction = `${player.name} đánh ${label(card)}.`;
+    setRoomEvent(room, 'discard', `${player.name} đánh ${label(card)}.`, player.id, card);
 
     const solution = bestMeldSolution(player.cards);
     if (solution.deadwoodScore === 0) {
@@ -362,7 +423,7 @@ io.on('connection', (socket) => {
     if (!solution.melds.length) return ackError(ack, 'Hiện chưa có phỏm để hạ.');
     player.laidDown = true;
     player.laydown = solution;
-    room.lastAction = `${player.name} đã hạ ${solution.melds.length} phỏm.`;
+    setRoomEvent(room, 'laydown', `${player.name} đã hạ ${solution.melds.length} phỏm.`, player.id);
     ack?.({ ok: true });
     emitRoom(room);
   });
@@ -386,7 +447,7 @@ io.on('connection', (socket) => {
     if (!room || !player || player.socketId !== socket.id) return;
     player.connected = false;
     player.socketId = null;
-    room.lastAction = `${player.name} mất kết nối, giữ chỗ 5 phút.`;
+    setRoomEvent(room, 'disconnect', `${player.name} mất kết nối, giữ chỗ 5 phút.`, player.id);
     emitRoom(room);
 
     player.disconnectTimer = setTimeout(() => {

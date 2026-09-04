@@ -107,3 +107,39 @@ label { font-size: 13px; color: var(--muted); font-weight: 700; }
   .notice { bottom:48px; }
   .center-area { top:45%; }
 }
+
+
+/* v1.1: bai bo tung nguoi, am thanh, diem tran */
+.topbar { flex-wrap: wrap; }
+.top-actions { align-items: center; flex-wrap: wrap; justify-content: flex-end; }
+.icon-btn { min-width: 42px; padding-inline: 10px; }
+.score-setting { display:flex; align-items:center; gap:6px; color:var(--muted); background:rgba(255,255,255,.05); border:1px solid var(--line); padding:5px 7px; border-radius:10px; margin:0; }
+.score-setting span { font-size:11px; white-space:nowrap; }
+.score-setting select { border:1px solid var(--line); border-radius:8px; background:#102f23; color:var(--text); padding:4px 6px; font-weight:800; outline:none; }
+.score-setting.host-setting { border-color:rgba(244,201,93,.45); }
+.score-setting select:disabled { opacity:.65; }
+
+.player-block { display:flex; flex-direction:column; align-items:center; gap:2px; }
+.player-discards { display:flex; justify-content:center; align-items:center; gap:3px; min-height:31px; margin-top:3px; padding:2px 4px; border-radius:7px; background:rgba(0,0,0,.16); }
+.player-discards.empty-discards { background:transparent; min-height:16px; }
+.player-discards.empty-discards span { font-size:9px; color:rgba(255,255,255,.48); }
+.discard-mini { width:23px; height:31px; display:flex; align-items:center; justify-content:center; border-radius:4px; background:#fff; color:#111; border:1px solid #ddd; box-shadow:0 2px 5px rgba(0,0,0,.25); font-weight:800; font-size:9px; }
+.discard-mini.last { outline:2px solid rgba(244,201,93,.75); transform:translateY(-2px); }
+.seat-left .player-discards, .seat-right .player-discards { max-width:120px; flex-wrap:wrap; }
+
+.result-player { display:flex; flex-direction:column; min-width:0; }
+.result-player small, .result-score small { color:var(--muted); font-size:11px; margin-top:2px; }
+.result-score { display:flex; flex-direction:column; align-items:flex-end; }
+.result-score .gain { color:#8de1ad; }
+.result-score .loss { color:#ff9b9b; }
+
+@media (max-width: 650px) {
+  .top-actions { gap:4px; }
+  .score-setting span { display:none; }
+  .score-setting { padding:4px; }
+  .score-setting select { padding:3px 4px; font-size:12px; }
+  .top-actions button.small { padding:7px 8px; }
+  .discard-mini { width:20px; height:28px; font-size:8px; }
+  .player-discards { gap:2px; }
+  .seat-left .player-discards, .seat-right .player-discards { max-width:92px; }
+}
